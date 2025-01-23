@@ -1,3 +1,6 @@
+This readme is generated with the following command
+#terraform-docs markdown table --output-file README.md --output-mode inject .
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
