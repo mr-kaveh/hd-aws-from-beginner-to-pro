@@ -1,0 +1,195 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation template to set up an image processing pipeline with Rekognition, S3, DynamoDB, Lambda, Step Functions, and SNS."
+
+Parameters:
+  NotificationEmail:
+    Type: String
+    Description: "Email address for SNS notifications"
+
+Resources:
+  RekognitionCollection:
+    Type: AWS::Rekognition::Collection
+    Properties:
+      CollectionId: rider-photos
+    Metadata:
+      Region: eu-central-1
+
+  RiderPhotoS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "rider-photo-bucket-${AWS::AccountId}"
+
+  ThumbnailS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "thumbnail-photo-bucket-${AWS::AccountId}"
+
+  RiderPhotoDDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: RiderPhotoDDBTable
+      AttributeDefinitions:
+        - AttributeName: PhotoId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PhotoId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [lambda.amazonaws.com]
+            Action: [sts:AssumeRole]
+      Policies:
+        - PolicyName: LambdaS3DynamoPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - !Sub "arn:aws:s3:::${RiderPhotoS3Bucket}/*"
+                  - !Sub "arn:aws:s3:::${ThumbnailS3Bucket}/*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource: !GetAtt RiderPhotoDDBTable.Arn
+              - Effect: Allow
+                Action:
+                  - rekognition:DetectFaces
+                  - rekognition:IndexFaces
+                  - rekognition:SearchFacesByImage
+                Resource: !Sub "arn:aws:rekognition:${AWS::Region}:${AWS::AccountId}:collection/rider-photos"
+
+  FaceDetectionLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: FaceDetectionLambda
+      Runtime: python3.8
+      Handler: face_detection.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          def lambda_handler(event, context):
+              return {'statusCode': 200, 'body': json.dumps('Face detection executed!')}
+
+  CheckFaceDuplicateLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CheckFaceDuplicateLambda
+      Runtime: python3.8
+      Handler: check_face_duplicate.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          def lambda_handler(event, context):
+              return {'statusCode': 200, 'body': json.dumps('Face duplicate check executed!')}
+
+  AddFaceToIndexLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: AddFaceToIndexLambda
+      Runtime: python3.8
+      Handler: add_face_to_index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          def lambda_handler(event, context):
+              return {'statusCode': 200, 'body': json.dumps('Face added to index!')}
+
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: StateMachineRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [states.amazonaws.com]
+            Action: [sts:AssumeRole]
+      Policies:
+        - PolicyName: StateMachineLambdaInvokePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt FaceDetectionLambda.Arn
+                  - !GetAtt CheckFaceDuplicateLambda.Arn
+                  - !GetAtt AddFaceToIndexLambda.Arn
+
+  ImageProcessingStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: ImageProcessingWorkflow
+      RoleArn: !GetAtt StateMachineRole.Arn
+      DefinitionString: 
+        !Sub |
+          {
+            "Comment": "Image processing workflow",
+            "StartAt": "FaceDetection",
+            "States": {
+              "FaceDetection": {
+                "Type": "Task",
+                "Resource": "${FaceDetectionLambda.Arn}",
+                "Next": "CheckFaceDuplicate"
+              },
+              "CheckFaceDuplicate": {
+                "Type": "Task",
+                "Resource": "${CheckFaceDuplicateLambda.Arn}",
+                "Next": "AddFaceToIndex"
+              },
+              "AddFaceToIndex": {
+                "Type": "Task",
+                "Resource": "${AddFaceToIndexLambda.Arn}",
+                "End": true
+              }
+            }
+          }
+
+  NotificationSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: ImageProcessingFailures
+
+  NotificationSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref NotificationSNSTopic
+      Protocol: email
+      Endpoint: !Ref NotificationEmail
+
+Outputs:
+  RekognitionCollection:
+    Description: "Rekognition collection for rider photos"
+    Value: !Ref RekognitionCollection
+  RiderPhotoS3Bucket:
+    Description: "S3 bucket for rider photos"
+    Value: !Ref RiderPhotoS3Bucket
+  ThumbnailS3Bucket:
+    Description: "S3 bucket for thumbnails"
+    Value: !Ref ThumbnailS3Bucket
+  RiderPhotoDDBTable:
+    Description: "DynamoDB table for photo metadata"
+    Value: !Ref RiderPhotoDDBTable
+  StateMachineArn:
+    Description: "ARN of the Step Function State Machine"
+    Value: !Ref ImageProcessingStateMachine
+  SNSTopicArn:
+    Description: "ARN of the SNS topic for failures"
+    Value: !Ref NotificationSNSTopic
