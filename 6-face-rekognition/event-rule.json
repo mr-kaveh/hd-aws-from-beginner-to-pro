@@ -1,0 +1,12 @@
+{
+    "source": ["aws.s3"],
+    "detail-type": ["AWS API Call via CloudTrail"],
+    "detail": {
+      "eventSource": ["s3.amazonaws.com"],
+      "eventName": ["PutObject"],
+      "requestParameters": {
+        "bucketName": ["face-detection-images-890742597184"]
+      }
+    }
+  }
+  

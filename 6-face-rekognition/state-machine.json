@@ -1,0 +1,22 @@
+{
+    "Comment": "Face Recognition State Machine",
+    "StartAt": "Detect Faces",
+    "States": {
+      "Detect Faces": {
+        "Type": "Task",
+        "Resource": "arn:aws:lambda:eu-central-1:890742597184:function:DetectFacesLambda",
+        "Next": "Store Metadata"
+      },
+      "Store Metadata": {
+        "Type": "Task",
+        "Resource": "arn:aws:lambda:eu-central-1:890742597184:function:StoreMetadataLambda",
+        "Next": "Send Notification"
+      },
+      "Send Notification": {
+        "Type": "Task",
+        "Resource": "arn:aws:lambda:eu-central-1:890742597184:function:SendNotificationLambda",
+        "End": true
+      }
+    }
+  }
+  
