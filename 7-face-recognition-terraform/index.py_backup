@@ -1,0 +1,66 @@
+import boto3
+import os
+import json
+import logging
+
+# Set up logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Initialize AWS clients
+s3 = boto3.client('s3')
+rekognition = boto3.client('rekognition')
+sns = boto3.client('sns')
+
+def handler(event, context):
+    try:
+        # Log the incoming event
+        logger.info("Received event: " + json.dumps(event))
+
+        # Extract bucket name and object key from the event
+        bucket_name = event['bucket_name']
+        object_key = event['object_key']
+        logger.info(f"Processing image: s3://{bucket_name}/{object_key}")
+
+        # Detect faces using Rekognition
+        response = rekognition.detect_faces(
+            Image={
+                'S3Object': {
+                    'Bucket': bucket_name,
+                    'Name': object_key
+                }
+            },
+            Attributes=['ALL']
+        )
+        logger.info("Rekognition response: " + json.dumps(response))
+
+        # Publish results to SNS
+        sns_topic_arn = os.environ['SNS_TOPIC_ARN']
+        sns.publish(
+            TopicArn=sns_topic_arn,
+            Message=json.dumps(response),
+            Subject="Face Detection Results"
+        )
+        logger.info("Published results to SNS")
+
+        return {
+            'statusCode': 200,
+            'body': json.dumps('Face detection completed!')
+        }
+
+    except Exception as e:
+        logger.error("Error in Lambda function: " + str(e))
+        raise e
+
+# Example of event with bucket name and object key
+event = {
+#    'bucket_name': 'face-detection-image-bucket',
+#    'object_key': '60b26bcae6c758000450899d.png'
+}
+
+# Example of context (can be an empty object in this case)
+context = {}
+
+# Invoke the function
+result = handler(event, context)
+print(result)
