@@ -190,3 +190,22 @@ Now, attach **basic execution permissions** to the role:
 
 
 
+### To **clean up all AWS resources** that you created for this service, follow these steps:
+
+	aws stepfunctions delete-state-machine --state-machine-arn arn:aws:states:eu-central-1:890742597184:stateMachine:ImageProcessingWorkflow
+	aws lambda list-functions --query "Functions[*].FunctionName"
+	aws lambda delete-function --function-name DetectFacesLambda
+	aws lambda delete-function --function-name StoreMetadataLambda
+	aws lambda delete-function --function-name SendNotificationLambda
+	aws lambda delete-function --function-name CheckFaceDuplicateLambda
+	aws lambda delete-function --function-name AddFaceToIndexLambda
+	aws lambda delete-function --function-name CreateThumbnailLambda
+	aws iam detach-role-policy --role-name LambdaExecutionRole --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+	aws iam delete-role-policy --role-name LambdaExecutionRole --policy-name LambdaPolicy
+	aws iam delete-role --role-name LambdaExecutionRole
+	aws s3 ls s3://face-detection-images-890742597184 --recursive
+	aws s3 rm s3://face-detection-images-890742597184 --recursive
+	aws s3 rb s3://face-detection-images-890742597184
+	aws dynamodb delete-table --table-name FaceMetadataTable
+	aws rekognition delete-collection --collection-id rider-photos
+	aws sns delete-topic --topic-arn arn:aws:sns:eu-central-1:<your-account-id>:ImageProcessingFailures
