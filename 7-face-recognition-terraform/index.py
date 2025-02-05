@@ -15,29 +15,23 @@ sns = boto3.client('sns')
 def handler(event, context):
     try:
         # Log the incoming event
-        logger.info("Received event: " + json.dumps(event))
+        logger.info("Received event: " + json.dumps(event['Records'][0]['s3']['bucket']['name']))
+        logger.info("Type of Event is:" + str(type(event)))
         
         # Extract bucket name from the EventBridge event
-        bucket_name = event['detail']['requestParameters']['bucketName']
+        bucket_name = event['Records'][0]['s3']['bucket']['name']
         logger.info(f"Processing bucket: {bucket_name}")
 
-        # List objects in the bucket to find the most recent object
-        response = s3.list_objects_v2(Bucket=bucket_name)
-        if 'Contents' in response:
-            # Assuming the latest object by 'LastModified' timestamp
-            sorted_objects = sorted(response['Contents'], key=lambda obj: obj['LastModified'], reverse=True)
-            latest_object_key = sorted_objects[0]['Key']
-        else:
-            raise ValueError("No objects found in the bucket.")
+        object_key = event['Records'][0]['s3']['object']['key']
 
-        logger.info(f"Processing image: s3://{bucket_name}/{latest_object_key}")
+        logger.info(f"Processing image: s3://{bucket_name}/{object_key}")
 
         # Detect faces using Rekognition
         rekognition_response = rekognition.detect_faces(
             Image={
                 'S3Object': {
                     'Bucket': bucket_name,
-                    'Name': latest_object_key
+                    'Name': object_key
                 }
             },
             Attributes=['ALL']
