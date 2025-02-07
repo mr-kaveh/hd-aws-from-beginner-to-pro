@@ -15,7 +15,7 @@ sns = boto3.client('sns')
 def handler(event, context):
     try:
         # Log the incoming event
-        logger.info("Received event: " + json.dumps(event['Records'][0]['s3']['bucket']['name']))
+        logger.info("Received event: " + json.dumps(event))
         logger.info("Type of Event is:" + str(type(event)))
         
         # Extract bucket name from the EventBridge event
