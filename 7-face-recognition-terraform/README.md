@@ -1,3 +1,10 @@
+
+## Architecture
+![enter image description here](https://raw.githubusercontent.com/mr-kaveh/hd-aws-from-beginner-to-pro/refs/heads/master/7-face-recognition-terraform/architecture.dot.png)
+
+## Flow
+![enter image description here](https://raw.githubusercontent.com/mr-kaveh/hd-aws-from-beginner-to-pro/refs/heads/master/7-face-recognition-terraform/Flow.PNG)
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
